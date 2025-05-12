@@ -10,7 +10,7 @@ import Footer from "./component/Footer";
 import ThoughtDetail from './component/ThoughtDetail';
 import SearchPage from "./pages/SearchPage";
 import Profile from "./pages/Profile";
-import Notification from "../server/models/Notification";
+import Notification from "./pages/Notification";
 
 const Home = () => <div className="container mx-auto py-8">Dashboard</div>;
 const UserDashboard = () => <div className="container mx-auto py-8">User Dashboard</div>;

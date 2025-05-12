@@ -1,90 +1,99 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useContext } from "react";
 import { io } from "socket.io-client";
 import axios from "axios";
+import AuthContext from "../AuthContext";
 
-// Improved socket connection handling
-const socket = io("http://localhost:5000", {
-  transports: ["websocket"], // Force WebSocket as transport to avoid issues with HTTP polling
-  reconnectionAttempts: 5,   // Limit reconnection attempts
-});
-
-const Notification = () => {
+const NotificationPage = () => {
   const [notifications, setNotifications] = useState([]);
-  const [loading, setLoading] = useState(true); // Add loading state for better UX
-  const [error, setError] = useState(null); // Add error state for better error handling
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const { token } = useContext(AuthContext);
 
-  // Fetch initial notifications from backend
   useEffect(() => {
+    const socket = io("http://localhost:5000", {
+      transports: ["websocket"],
+      auth: {
+        token: token
+      }
+    });
+
     const fetchNotifications = async () => {
       try {
-        const res = await axios.get("http://localhost:5000/api/notifications");
-        if (res && res.data) {
-          setNotifications(res.data);
-          console.log("Fetched notifications:", res.data);
-        } else {
-          console.error("No data returned from the backend.");
-        }
+        const response = await axios.get("http://localhost:5000/api/notifications", {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        });
+        setNotifications(response.data);
       } catch (err) {
-        console.error("Error fetching notifications:", err.message || err);
-        setError("Failed to load notifications. Please try again.");
+        console.error("Error fetching notifications:", err);
+        setError("Failed to load notifications");
       } finally {
-        setLoading(false); // Stop loading after request completes
+        setLoading(false);
       }
     };
 
     fetchNotifications();
 
-    // Listen for real-time notifications from Socket.io
-    socket.on("newNotification", (notification) => {
-      setNotifications((prevNotifications) => [notification, ...prevNotifications]);
+    socket.on("connect", () => {
+      console.log("Connected to socket server");
     });
 
-    // Socket connection event handling
-    socket.on("connect", () => {
-      console.log("Socket connected: " + socket.id);
+    socket.on("newNotification", (notification) => {
+      console.log("Received new notification:", notification);
+      setNotifications(prev => [notification, ...prev]);
     });
 
     socket.on("connect_error", (err) => {
       console.error("Socket connection error:", err);
-      setError("Socket connection failed. Please try again later.");
+      setError("Failed to connect to notification service");
     });
 
-    // Cleanup the listener when the component is unmounted
     return () => {
       socket.off("newNotification");
       socket.off("connect");
       socket.off("connect_error");
+      socket.disconnect();
     };
-  }, []);
+  }, [token]);
 
   return (
-    <div className="min-h-screen bg-gray-100 p-4">
-      <header className="bg-blue-600 text-white text-center p-4 text-xl font-bold">
-        Notifications
-      </header>
-      
-      {/* Display error message if any */}
-      {error && (
-        <div className="bg-red-100 text-red-700 p-4 rounded-lg mb-4 text-center">
-          {error}
-        </div>
-      )}
+    <div className="min-h-screen bg-gray-100 pt-20 p-4">
+      <div className="max-w-2xl mx-auto">
+        <h1 className="text-2xl font-bold mb-4">Notifications</h1>
+        
+        {error && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+            {error}
+          </div>
+        )}
 
-      <div className="max-w-lg mx-auto mt-4 bg-white p-4 rounded-lg shadow-md">
         {loading ? (
-          <p className="text-gray-500 text-center">Loading notifications...</p>
+          <div className="flex justify-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+          </div>
         ) : notifications.length === 0 ? (
-          <p className="text-gray-500 text-center">No notifications yet</p>
+          <div className="bg-white rounded-lg shadow p-6 text-center text-gray-500">
+            No notifications yet
+          </div>
         ) : (
-          notifications.map((notif, index) => (
-            <div key={index} className="p-3 border-b last:border-none">
-              <p className="text-sm text-gray-700">{notif.message}</p>
-            </div>
-          ))
+          <div className="space-y-4">
+            {notifications.map((notification, index) => (
+              <div
+                key={notification._id || index}
+                className="bg-white rounded-lg shadow p-4 hover:shadow-md transition-shadow"
+              >
+                <p className="text-gray-800">{notification.message}</p>
+                <p className="text-sm text-gray-500 mt-2">
+                  {new Date(notification.createdAt).toLocaleDateString()}
+                </p>
+              </div>
+            ))}
+          </div>
         )}
       </div>
     </div>
   );
 };
 
-export default Notification;
+export default NotificationPage;

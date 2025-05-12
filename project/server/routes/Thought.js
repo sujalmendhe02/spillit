@@ -151,9 +151,11 @@ router.post("/:id/toggle-like", auth, async (req, res) => {
             return res.status(404).json({ message: "Thought not found" });
         }
 
-        console.log("Fetched Thought:", thought);
-        console.log("Author of Thought:", thought.author);
-        
+        const user = await User.findById(req.userId);
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
         const userIndex = thought.likes.indexOf(req.userId);
         const isLiked = userIndex === -1;
 
@@ -167,16 +169,13 @@ router.post("/:id/toggle-like", auth, async (req, res) => {
 
         if (isLiked && thought.author.toString() !== req.userId.toString()) {
             const notification = new Notification({
-                userId: thought.author, 
-                senderId: req.userId, 
+                userId: thought.author,
+                senderId: req.userId,
                 type: "like",
-                message: "Someone liked your thought!",
+                message: `${user.username} liked your thought "${thought.title}"`,
             });
 
             await notification.save();
-
-            console.log(`Sending notification to user: ${thought.author.toString()}`);
-            console.log("Online Users Map:", onlineUsers);
 
             if (onlineUsers.has(thought.author.toString())) {
                 io.to(onlineUsers.get(thought.author.toString())).emit("newNotification", notification);
@@ -188,10 +187,7 @@ router.post("/:id/toggle-like", auth, async (req, res) => {
         console.error("Error in toggle-like route:", err);
         res.status(500).json({ message: "Server error", error: err.message });
     }
-    console.log("User ID:", req.userId);
 });
-
-
 
 // Add a comment to a thought
 router.post("/:id/comment", auth, async (req, res) => {
@@ -217,22 +213,71 @@ router.post("/:id/comment", auth, async (req, res) => {
         await thought.save();
 
         // Notify the thought owner
-        if (thought.user.toString() !== req.userId.toString()) {
+        if (thought.author.toString() !== req.userId.toString()) {
             const notification = new Notification({
-                userId: thought.user,
+                userId: thought.author,
                 senderId: req.userId,
                 type: "comment",
-                message: `${user.username} commented on your thought!`,
+                message: `${user.username} commented on your thought "${thought.title}"`,
             });
 
             await notification.save();
 
-            if (onlineUsers.has(thought.user.toString())) {
-                io.to(onlineUsers.get(thought.user.toString())).emit("newNotification", notification);
+            if (onlineUsers.has(thought.author.toString())) {
+                io.to(onlineUsers.get(thought.author.toString())).emit("newNotification", notification);
             }
         }
 
         res.status(200).json({ message: "Comment added", comment });
+    } catch (err) {
+        res.status(500).json({ message: "Server error", error: err.message });
+    }
+});
+
+// Reply to a comment
+router.post("/:id/comment/:commentId/reply", auth, async (req, res) => {
+    try {
+        const thought = await Thought.findById(req.params.id);
+        if (!thought) {
+            return res.status(404).json({ message: "Thought not found" });
+        }
+
+        const comment = thought.comments.id(req.params.commentId);
+        if (!comment) {
+            return res.status(404).json({ message: "Comment not found" });
+        }
+
+        const user = await User.findById(req.userId);
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        const reply = {
+            user: req.userId,
+            text: req.body.text,
+            createdAt: new Date(),
+        };
+
+        comment.replies.push(reply);
+        await thought.save();
+
+        // Notify the comment owner
+        if (comment.user.toString() !== req.userId.toString()) {
+            const notification = new Notification({
+                userId: comment.user,
+                senderId: req.userId,
+                type: "reply",
+                message: `${user.username} replied to your comment on "${thought.title}"`,
+            });
+
+            await notification.save();
+
+            if (onlineUsers.has(comment.user.toString())) {
+                io.to(onlineUsers.get(comment.user.toString())).emit("newNotification", notification);
+            }
+        }
+
+        res.status(200).json({ message: "Reply added", reply });
     } catch (err) {
         res.status(500).json({ message: "Server error", error: err.message });
     }
@@ -281,52 +326,6 @@ router.post("/:id/comment/:commentId/like", auth, async (req, res) => {
         res.status(500).json({ message: "Server error", error: err.message });
     }
 });
-
-// Reply to a comment
-router.post("/:id/comment/:commentId/reply", auth, async (req, res) => {
-    try {
-        const thought = await Thought.findById(req.params.id);
-        if (!thought) {
-            return res.status(404).json({ message: "Thought not found" });
-        }
-
-        const comment = thought.comments.id(req.params.commentId);
-        if (!comment) {
-            return res.status(404).json({ message: "Comment not found" });
-        }
-
-        const reply = {
-            user: req.userId,
-            text: req.body.text,
-            createdAt: new Date(),
-        };
-
-        comment.replies.push(reply);
-        await thought.save();
-
-        // Notify the comment owner
-        if (comment.user.toString() !== req.userId.toString()) {
-            const notification = new Notification({
-                userId: comment.user,
-                senderId: req.userId,
-                type: "reply",
-                message: "Someone replied to your comment!",
-            });
-
-            await notification.save();
-
-            if (onlineUsers.has(comment.user.toString())) {
-                io.to(onlineUsers.get(comment.user.toString())).emit("newNotification", notification);
-            }
-        }
-
-        res.status(200).json({ message: "Reply added", reply });
-    } catch (err) {
-        res.status(500).json({ message: "Server error", error: err.message });
-    }
-});
-
-
 
 // Like a reply
 router.post("/:id/comment/:commentId/reply/:replyId/like", auth, async (req, res) => {
