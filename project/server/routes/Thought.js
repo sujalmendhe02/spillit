@@ -409,4 +409,62 @@ router.get('/next/:id', async (req, res) => {
     }
 });
 
+router.delete("/:id/comment/:commentId", auth, async (req, res) => {
+    try {
+        const thought = await Thought.findById(req.params.id);
+        if (!thought) {
+            return res.status(404).json({ message: "Thought not found" });
+        }
+
+        const comment = thought.comments.id(req.params.commentId);
+        if (!comment) {
+            return res.status(404).json({ message: "Comment not found" });
+        }
+
+        // Check if the user is authorized to delete the comment
+        if (comment.user.toString() !== req.userId) {
+            return res.status(403).json({ message: "Not authorized to delete this comment" });
+        }
+
+        comment.remove();
+        await thought.save();
+
+        res.status(200).json({ message: "Comment deleted successfully" });
+    } catch (err) {
+        res.status(500).json({ message: "Server error", error: err.message });
+    }
+});
+
+// Delete a reply
+router.delete("/:id/comment/:commentId/reply/:replyId", auth, async (req, res) => {
+    try {
+        const thought = await Thought.findById(req.params.id);
+        if (!thought) {
+            return res.status(404).json({ message: "Thought not found" });
+        }
+
+        const comment = thought.comments.id(req.params.commentId);
+        if (!comment) {
+            return res.status(404).json({ message: "Comment not found" });
+        }
+
+        const reply = comment.replies.id(req.params.replyId);
+        if (!reply) {
+            return res.status(404).json({ message: "Reply not found" });
+        }
+
+        // Check if the user is authorized to delete the reply
+        if (reply.user.toString() !== req.userId) {
+            return res.status(403).json({ message: "Not authorized to delete this reply" });
+        }
+
+        reply.remove();
+        await thought.save();
+
+        res.status(200).json({ message: "Reply deleted successfully" });
+    } catch (err) {
+        res.status(500).json({ message: "Server error", error: err.message });
+    }
+});
+
 export default router;

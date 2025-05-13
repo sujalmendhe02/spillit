@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useContext } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import axios from "axios";
-import { FaHeart, FaPaperPlane } from "react-icons/fa";
+import { FaHeart, FaPaperPlane, FaTrash, FaThumbsUp } from "react-icons/fa";
+import AuthContext from "../AuthContext";
 
 const ThoughtDetail = () => {
     const { id } = useParams();
@@ -13,65 +14,14 @@ const ThoughtDetail = () => {
     const [likeCount, setLikeCount] = useState(0);
     const [commentText, setCommentText] = useState("");
     const [replyText, setReplyText] = useState({});
-    const [taggedUser, setTaggedUser] = useState({});
-    const userId = "USER_ID"; // Replace with actual user ID from auth context
-
-    const refreshPage = () => {
-        navigate(0); // This reloads the current page
-    };
+    const { user } = useContext(AuthContext);
 
     useEffect(() => {
-        const handleKeyDown = (event) => {
-            if (event.key === 'ArrowLeft') {
-                // Navigate to the previous blog
-                navigateToPreviousBlog();
-            } else if (event.key === 'ArrowRight') {
-                // Navigate to the next blog
-                navigateToNextBlog();
-            }
-        };
-
-        window.addEventListener('keydown', handleKeyDown);
-
-        return () => {
-            window.removeEventListener('keydown', handleKeyDown);
-        };
-    }, [thought]);
-
-    const navigateToPreviousBlog = async () => {
-        try {
-            const res = await axios.get(`http://localhost:5000/api/thoughts/previous/${id}`);
-            if (res.data && res.data._id) {
-                navigate(`/thought/${res.data._id}`);
-            }
-        } catch (err) {
-            console.error('Error fetching previous thought:', err);
-        }
-    };
-
-    const navigateToNextBlog = async () => {
-        try {
-            const res = await axios.get(`http://localhost:5000/api/thoughts/next/${id}`);
-            if (res.data && res.data._id) {
-                navigate(`/thought/${res.data._id}`);
-            }
-        } catch (err) {
-            console.error('Error fetching next thought:', err);
-        }
-    };
-
-
-    useEffect(() => {
-        
-        const checkIfLiked = (thought, userId) => {
-            return thought.likes?.includes(userId);
-        };
-        
         const fetchThought = async () => {
             try {
                 const res = await axios.get(`http://localhost:5000/api/thoughts/${id}`);
                 setThought(res.data);
-                setLiked(checkIfLiked(res.data, userId));
+                setLiked(res.data.likes?.includes(user?._id));
                 setLikeCount(res.data.likes?.length || 0);
             } catch (err) {
                 setError("Failed to load thought");
@@ -80,13 +30,17 @@ const ThoughtDetail = () => {
             }
         };
         fetchThought();
-    }, [id]);
+    }, [id, user]);
 
-    const handleLikeToggle = async (e) => {
-        e.preventDefault();
+    const handleLikeToggle = async () => {
+        if (!user) {
+            navigate("/login");
+            return;
+        }
+
         try {
             const response = await axios.post(
-                `http://localhost:5000/api/thoughts/${thought._id}/toggle-like`,
+                `http://localhost:5000/api/thoughts/${id}/toggle-like`,
                 {},
                 {
                     headers: {
@@ -95,20 +49,24 @@ const ThoughtDetail = () => {
                 }
             );
 
-            if (response.data) {
-                setLiked(response.data.liked);
-                setLikeCount(response.data.likeCount);
-            }
+            setLiked(!liked);
+            setLikeCount(liked ? likeCount - 1 : likeCount + 1);
         } catch (error) {
             console.error("Error toggling like:", error);
         }
     };
 
     const handleComment = async () => {
+        if (!user) {
+            navigate("/login");
+            return;
+        }
+
         if (!commentText.trim()) return;
+
         try {
-            const res = await axios.post(
-                `http://localhost:5000/api/thoughts/${thought._id}/comment`,
+            await axios.post(
+                `http://localhost:5000/api/thoughts/${id}/comment`,
                 { text: commentText },
                 {
                     headers: {
@@ -117,26 +75,27 @@ const ThoughtDetail = () => {
                 }
             );
 
-            setThought((prev) => ({
-                ...prev,
-                comments: [...prev.comments, res.data],
-            }));
+            // Refresh thought data
+            const res = await axios.get(`http://localhost:5000/api/thoughts/${id}`);
+            setThought(res.data);
             setCommentText("");
         } catch (error) {
             console.error("Error adding comment:", error);
         }
-        refreshPage();
     };
 
     const handleReply = async (commentId) => {
+        if (!user) {
+            navigate("/login");
+            return;
+        }
+
         if (!replyText[commentId]?.trim()) return;
+
         try {
-            const res = await axios.post(
+            await axios.post(
                 `http://localhost:5000/api/thoughts/${id}/comment/${commentId}/reply`,
-                {
-                    text: replyText[commentId],
-                    taggedUsername: taggedUser[commentId] || null,
-                },
+                { text: replyText[commentId] },
                 {
                     headers: {
                         Authorization: `Bearer ${localStorage.getItem("token")}`,
@@ -144,116 +103,208 @@ const ThoughtDetail = () => {
                 }
             );
 
-            setThought((prev) => ({
-                ...prev,
-                comments: prev.comments.map((comment) =>
-                    comment._id === commentId
-                        ? { ...comment, replies: [...comment.replies, res.data] }
-                        : comment
-                ),
-            }));
-            setReplyText((prev) => ({ ...prev, [commentId]: "" }));
-            setTaggedUser((prev) => ({ ...prev, [commentId]: "" }));
+            // Refresh thought data
+            const res = await axios.get(`http://localhost:5000/api/thoughts/${id}`);
+            setThought(res.data);
+            setReplyText({ ...replyText, [commentId]: "" });
         } catch (error) {
-            console.error("Error replying to comment:", error);
+            console.error("Error adding reply:", error);
         }
-        refreshPage();
     };
 
-    if (loading) return <p>Loading...</p>;
-    if (error) return <p>{error}</p>;
+    const handleLikeComment = async (commentId) => {
+        if (!user) {
+            navigate("/login");
+            return;
+        }
+
+        try {
+            await axios.post(
+                `http://localhost:5000/api/thoughts/${id}/comment/${commentId}/like`,
+                {},
+                {
+                    headers: {
+                        Authorization: `Bearer ${localStorage.getItem("token")}`,
+                    },
+                }
+            );
+
+            // Refresh thought data
+            const res = await axios.get(`http://localhost:5000/api/thoughts/${id}`);
+            setThought(res.data);
+        } catch (error) {
+            console.error("Error liking comment:", error);
+        }
+    };
+
+    const handleDeleteComment = async (commentId) => {
+        if (!user) return;
+
+        try {
+            await axios.delete(
+                `http://localhost:5000/api/thoughts/${id}/comment/${commentId}`,
+                {
+                    headers: {
+                        Authorization: `Bearer ${localStorage.getItem("token")}`,
+                    },
+                }
+            );
+
+            // Refresh thought data
+            const res = await axios.get(`http://localhost:5000/api/thoughts/${id}`);
+            setThought(res.data);
+        } catch (error) {
+            console.error("Error deleting comment:", error);
+        }
+    };
+
+    const handleDeleteReply = async (commentId, replyId) => {
+        if (!user) return;
+
+        try {
+            await axios.delete(
+                `http://localhost:5000/api/thoughts/${id}/comment/${commentId}/reply/${replyId}`,
+                {
+                    headers: {
+                        Authorization: `Bearer ${localStorage.getItem("token")}`,
+                    },
+                }
+            );
+
+            // Refresh thought data
+            const res = await axios.get(`http://localhost:5000/api/thoughts/${id}`);
+            setThought(res.data);
+        } catch (error) {
+            console.error("Error deleting reply:", error);
+        }
+    };
+
+    if (loading) return <div className="flex justify-center items-center h-screen"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div></div>;
+    if (error) return <div className="text-red-500 text-center p-4">{error}</div>;
+    if (!thought) return <div className="text-center p-4">Thought not found</div>;
 
     return (
-        <div className="max-w-2xl mx-auto p-4 border rounded shadow-lg bg-white">
-            <h1 className="text-2xl pt-20 font-bold mb-2">{thought.title}</h1>
-            <p className="text-gray-600 mb-4">By {thought.author?.username || "Unknown"}</p>
-            <p className="mb-4">{thought.content}</p>
+        <div className="max-w-2xl mx-auto p-4 pt-20">
+            <div className="bg-white rounded-lg shadow-md p-6">
+                <h1 className="text-2xl font-bold mb-2">{thought.title}</h1>
+                <p className="text-gray-600 mb-4">By {thought.author?.username || "Unknown"}</p>
+                <p className="mb-4">{thought.content}</p>
 
-            <div className="mt-6 flex items-center space-x-2">
-                <button onClick={handleLikeToggle} className="flex items-center space-x-2">
-                    <FaHeart className={liked ? "text-red-600" : "text-gray-400"} />
-                    <span>{likeCount}</span>
-                </button>
-            </div>
+                <div className="flex items-center space-x-4 mb-6">
+                    <button
+                        onClick={handleLikeToggle}
+                        className={`flex items-center space-x-2 ${liked ? 'text-red-500' : 'text-gray-500'}`}
+                    >
+                        <FaHeart className={liked ? 'fill-current' : 'stroke-current'} />
+                        <span>{likeCount}</span>
+                    </button>
+                </div>
 
-            <div className="mt-4">
-                <h3 className="text-lg font-semibold">Book Mentioned:</h3>
-                {thought.book && thought.book.length > 0 ? (
-                    <ul className="list-disc ml-5">
-                        {thought.book.map((b, index) => (
-                            <li key={index}>
-                                <strong>{b.title}</strong> by {b.author} {b.tags.length > 0 && `(${b.tags.join(', ')})`}
-                            </li>
-                        ))}
-                    </ul>
-                ) : (
-                    <p>No books mentioned.</p>
-                )}
-            </div>
+                <div className="mt-4">
+                    <h3 className="text-lg font-semibold">Book Mentioned:</h3>
+                    {thought.book && thought.book.length > 0 ? (
+                        <ul className="list-disc ml-5">
+                            {thought.book.map((b, index) => (
+                                <li key={index}>
+                                    <strong>{b.title}</strong> by {b.author} {b.tags.length > 0 && `(${b.tags.join(', ')})`}
+                                </li>
+                            ))}
+                        </ul>
+                    ) : (
+                        <p>No books mentioned.</p>
+                    )}
+                </div>
 
+                {/* Comments Section */}
+                <div className="mt-8">
+                    <h3 className="text-lg font-semibold mb-4">Comments</h3>
 
-            {/* Comments Section */}
-            <div className="mt-6">
-                <h3 className="text-lg font-semibold">Comments:</h3>
-                {thought.comments.length > 0 ? (
-                    <ul className="mt-2 space-y-4">
-                        {thought.comments.map((comment) => (
-                            <li key={comment._id} className="p-3 border rounded-lg">
-                                <p>
-                                    <strong>{comment.user?.username || "Anonymous"}:</strong>{" "}
-                                    {comment.text}
-                                </p>
+                    {/* Add Comment */}
+                    <div className="flex space-x-2 mb-6">
+                        <input
+                            type="text"
+                            value={commentText}
+                            onChange={(e) => setCommentText(e.target.value)}
+                            placeholder="Add a comment..."
+                            className="flex-1 p-2 border rounded-lg"
+                        />
+                        <button
+                            onClick={handleComment}
+                            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+                        >
+                            <FaPaperPlane />
+                        </button>
+                    </div>
+
+                    {/* Comments List */}
+                    <div className="space-y-4">
+                        {thought.comments?.map((comment) => (
+                            <div key={comment._id} className="bg-gray-50 p-4 rounded-lg">
+                                <div className="flex justify-between items-start">
+                                    <div>
+                                        <p className="font-semibold">{comment.username}</p>
+                                        <p className="mt-1">{comment.text}</p>
+                                    </div>
+                                    <div className="flex space-x-2">
+                                        <button
+                                            onClick={() => handleLikeComment(comment._id)}
+                                            className={`p-1 ${comment.likes?.includes(user?._id) ? 'text-red-500' : 'text-gray-500'}`}
+                                        >
+                                            <FaHeart />
+                                        </button>
+                                        {user?._id === comment.user && (
+                                            <button
+                                                onClick={() => handleDeleteComment(comment._id)}
+                                                className="p-1 text-red-500 hover:text-red-700"
+                                            >
+                                                <FaTrash />
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+
                                 {/* Replies */}
-                                {comment.replies.length > 0 && (
-                                    <ul className="mt-2 ml-4 border-l pl-4">
-                                        {comment.replies.map((reply) => (
-                                            <li key={reply._id} className="text-sm">
-                                                <strong>{reply.user?.username || "Anonymous"}:</strong>{" "}
-                                                {reply.taggedUsername && (
-                                                    <span className="text-blue-500">@{reply.taggedUsername} </span>
+                                <div className="ml-8 mt-2 space-y-2">
+                                    {comment.replies?.map((reply) => (
+                                        <div key={reply._id} className="bg-white p-2 rounded">
+                                            <div className="flex justify-between items-start">
+                                                <div>
+                                                    <p className="font-semibold text-sm">{reply.user?.username}</p>
+                                                    <p className="text-sm">{reply.text}</p>
+                                                </div>
+                                                {user?._id === reply.user && (
+                                                    <button
+                                                        onClick={() => handleDeleteReply(comment._id, reply._id)}
+                                                        className="p-1 text-red-500 hover:text-red-700"
+                                                    >
+                                                        <FaTrash />
+                                                    </button>
                                                 )}
-                                                {reply.text}
-                                            </li>
-                                        ))}
-                                    </ul>
-                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
 
-                                {/* Reply Box */}
-                                <div className="mt-2 flex space-x-2">
+                                {/* Add Reply */}
+                                <div className="mt-2 ml-8 flex space-x-2">
                                     <input
                                         type="text"
-                                        placeholder="Reply..."
-                                        value={replyText[comment._id] || ""}
-                                        onChange={(e) =>
-                                            setReplyText({ ...replyText, [comment._id]: e.target.value })
-                                        }
-                                        className="border p-1 rounded w-full text-sm"
+                                        value={replyText[comment._id] || ''}
+                                        onChange={(e) => setReplyText({ ...replyText, [comment._id]: e.target.value })}
+                                        placeholder="Reply to this comment..."
+                                        className="flex-1 p-1 text-sm border rounded"
                                     />
-                                   
-                                    <button onClick={() => handleReply(comment._id)} className="ml-2 text-blue-500">
+                                    <button
+                                        onClick={() => handleReply(comment._id)}
+                                        className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
+                                    >
                                         <FaPaperPlane />
                                     </button>
                                 </div>
-                            </li>
+                            </div>
                         ))}
-                    </ul>
-                ) : (
-                    <p>No comments yet.</p>
-                )}
-            </div>
-
-            {/* Comment Box */}
-            <div className="mt-4 flex items-center space-x-2">
-                <input
-                    type="text"
-                    placeholder="Add a comment..."
-                    value={commentText}
-                    onChange={(e) => setCommentText(e.target.value)}
-                    className="w-full border p-1 rounded text-sm"
-                />
-                <button onClick={handleComment} className="text-blue-500">
-                    <FaPaperPlane />
-                </button>
+                    </div>
+                </div>
             </div>
         </div>
     );
