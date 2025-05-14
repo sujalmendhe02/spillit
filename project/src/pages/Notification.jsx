@@ -2,6 +2,8 @@ import React, { useEffect, useState, useContext } from "react";
 import { io } from "socket.io-client";
 import axios from "axios";
 import AuthContext from "../AuthContext";
+import { Trash2 } from "lucide-react";
+import { toast } from "react-toastify";
 
 const NotificationPage = () => {
   const [notifications, setNotifications] = useState([]);
@@ -57,6 +59,22 @@ const NotificationPage = () => {
     };
   }, [token]);
 
+  const handleDeleteNotification = async (notificationId) => {
+    try {
+      await axios.delete(`http://localhost:5000/api/thoughts/notifications/${notificationId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      setNotifications(prev => prev.filter(n => n._id !== notificationId));
+      toast.success("Notification deleted successfully");
+    } catch (err) {
+      console.error("Error deleting notification:", err);
+      toast.error("Failed to delete notification");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-100 pt-20 p-4">
       <div className="max-w-2xl mx-auto">
@@ -78,15 +96,23 @@ const NotificationPage = () => {
           </div>
         ) : (
           <div className="space-y-4">
-            {notifications.map((notification, index) => (
+            {notifications.map((notification) => (
               <div
-                key={notification._id || index}
-                className="bg-white rounded-lg shadow p-4 hover:shadow-md transition-shadow"
+                key={notification._id}
+                className="bg-white rounded-lg shadow p-4 hover:shadow-md transition-shadow flex justify-between items-center"
               >
-                <p className="text-gray-800">{notification.message}</p>
-                <p className="text-sm text-gray-500 mt-2">
-                  {new Date(notification.createdAt).toLocaleDateString()}
-                </p>
+                <div>
+                  <p className="text-gray-800">{notification.message}</p>
+                  <p className="text-sm text-gray-500 mt-2">
+                    {new Date(notification.createdAt).toLocaleDateString()}
+                  </p>
+                </div>
+                <button
+                  onClick={() => handleDeleteNotification(notification._id)}
+                  className="text-red-500 hover:text-red-700 transition-colors"
+                >
+                  <Trash2 size={20} />
+                </button>
               </div>
             ))}
           </div>

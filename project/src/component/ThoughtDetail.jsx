@@ -1,5 +1,6 @@
 import { useEffect, useState, useContext } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { toast } from "react-toastify";
 import axios from "axios";
 import { FaHeart, FaPaperPlane, FaTrash, FaThumbsUp } from "react-icons/fa";
 import AuthContext from "../AuthContext";
@@ -49,10 +50,14 @@ const ThoughtDetail = () => {
                 }
             );
 
-            setLiked(!liked);
-            setLikeCount(liked ? likeCount - 1 : likeCount + 1);
+            const { liked: isLiked, likeCount: newLikeCount } = response.data;
+            setLiked(isLiked);
+            setLikeCount(newLikeCount);
+
+            toast.success(isLiked ? "Thought liked!" : "Thought unliked");
         } catch (error) {
             console.error("Error toggling like:", error);
+            toast.error("Failed to update like");
         }
     };
 
@@ -75,12 +80,13 @@ const ThoughtDetail = () => {
                 }
             );
 
-            // Refresh thought data
             const res = await axios.get(`http://localhost:5000/api/thoughts/${id}`);
             setThought(res.data);
             setCommentText("");
+            toast.success("Comment added successfully!");
         } catch (error) {
             console.error("Error adding comment:", error);
+            toast.error("Failed to add comment");
         }
     };
 
@@ -119,7 +125,7 @@ const ThoughtDetail = () => {
         }
 
         try {
-            await axios.post(
+            const response = await axios.post(
                 `http://localhost:5000/api/thoughts/${id}/comment/${commentId}/like`,
                 {},
                 {
@@ -129,11 +135,14 @@ const ThoughtDetail = () => {
                 }
             );
 
-            // Refresh thought data
+            const { liked: isLiked } = response.data;
             const res = await axios.get(`http://localhost:5000/api/thoughts/${id}`);
             setThought(res.data);
+
+            toast.success(isLiked ? "Comment liked!" : "Comment unliked");
         } catch (error) {
             console.error("Error liking comment:", error);
+            toast.error("Failed to update like");
         }
     };
 
@@ -195,7 +204,7 @@ const ThoughtDetail = () => {
                         onClick={handleLikeToggle}
                         className={`flex items-center space-x-2 ${liked ? 'text-red-500' : 'text-gray-500'}`}
                     >
-                        <FaHeart className={liked ? 'fill-current' : 'stroke-current'} />
+                        <FaHeart className={liked ? 'fill-current' : ''} />
                         <span>{likeCount}</span>
                     </button>
                 </div>
@@ -206,7 +215,7 @@ const ThoughtDetail = () => {
                         <ul className="list-disc ml-5">
                             {thought.book.map((b, index) => (
                                 <li key={index}>
-                                    <strong>{b.title}</strong> by {b.author} {b.tags.length > 0 && `(${b.tags.join(', ')})`}
+                                    <strong>{b.title}</strong> by {b.author} {b.tags?.length > 0 && `(${b.tags.join(', ')})`}
                                 </li>
                             ))}
                         </ul>
@@ -215,11 +224,9 @@ const ThoughtDetail = () => {
                     )}
                 </div>
 
-                {/* Comments Section */}
                 <div className="mt-8">
                     <h3 className="text-lg font-semibold mb-4">Comments</h3>
 
-                    {/* Add Comment */}
                     <div className="flex space-x-2 mb-6">
                         <input
                             type="text"
@@ -236,7 +243,6 @@ const ThoughtDetail = () => {
                         </button>
                     </div>
 
-                    {/* Comments List */}
                     <div className="space-y-4">
                         {thought.comments?.map((comment) => (
                             <div key={comment._id} className="bg-gray-50 p-4 rounded-lg">
@@ -250,8 +256,10 @@ const ThoughtDetail = () => {
                                             onClick={() => handleLikeComment(comment._id)}
                                             className={`p-1 ${comment.likes?.includes(user?._id) ? 'text-red-500' : 'text-gray-500'}`}
                                         >
-                                            <FaHeart />
+                                            <FaHeart className={comment.likes?.includes(user?._id) ? 'fill-current' : ''} />
+                                            <span className="ml-1">{comment.likes?.length || 0}</span>
                                         </button>
+
                                         {user?._id === comment.user && (
                                             <button
                                                 onClick={() => handleDeleteComment(comment._id)}
@@ -260,9 +268,9 @@ const ThoughtDetail = () => {
                                                 <FaTrash />
                                             </button>
                                         )}
+
                                     </div>
                                 </div>
-
                                 {/* Replies */}
                                 <div className="ml-8 mt-2 space-y-2">
                                     {comment.replies?.map((reply) => (

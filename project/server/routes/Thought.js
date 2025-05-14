@@ -12,7 +12,7 @@ const router = express.Router();
 
 // Create a new thought
 router.post('/', auth, async (req, res) => {
-    console.log("Received Data:", req.body); // Debugging log
+    console.log("Received Data:", req.body);
     const { title, content, book } = req.body;
 
     if (!title || !content) {
@@ -28,13 +28,10 @@ router.post('/', auth, async (req, res) => {
         });
 
         await thought.save();
-
-        // Push the thought ID to the user's thoughts array
         await User.findByIdAndUpdate(req.userId, { $push: { thoughts: thought._id } });
-
         res.status(201).json({ message: 'Thought created successfully', thought });
     } catch (err) {
-        console.error("Server Error:", err.message); // Log actual error
+        console.error("Server Error:", err.message);
         res.status(500).json({ message: 'Server error', error: err.message });
     }
 });
@@ -85,6 +82,7 @@ router.get("/search", async (req, res) => {
     }
 });
 
+//delete a thought
 router.delete('/:id', auth, async (req, res) => {
     const { id } = req.params;
 
@@ -161,35 +159,73 @@ router.post("/:id/toggle-like", auth, async (req, res) => {
 
         if (isLiked) {
             thought.likes.push(req.userId);
+
+            // Only create notification if it's a new like and not the author liking their own thought
+            if (thought.author.toString() !== req.userId.toString()) {
+                // Check if a similar notification already exists
+                const existingNotification = await Notification.findOne({
+                    userId: thought.author,
+                    senderId: req.userId,
+                    type: "like",
+                    thoughtId: thought._id,
+                });
+
+                if (!existingNotification) {
+                    const notification = new Notification({
+                        userId: thought.author,
+                        senderId: req.userId,
+                        type: "like",
+                        thoughtId: thought._id,
+                        message: `${user.username} liked your thought "${thought.title}"`,
+                    });
+
+                    await notification.save();
+
+                    // Emit notification to the author if they're online
+                    const authorSocketId = onlineUsers.get(thought.author.toString());
+                    if (authorSocketId) {
+                        io.to(authorSocketId).emit("newNotification", notification);
+                    }
+                }
+            }
         } else {
             thought.likes.splice(userIndex, 1);
         }
 
         await thought.save();
-
-        if (isLiked && thought.author.toString() !== req.userId.toString()) {
-            const notification = new Notification({
-                userId: thought.author,
-                senderId: req.userId,
-                type: "like",
-                message: `${user.username} liked your thought "${thought.title}"`,
-            });
-
-            await notification.save();
-
-            if (onlineUsers.has(thought.author.toString())) {
-                io.to(onlineUsers.get(thought.author.toString())).emit("newNotification", notification);
-            }
-        }
-
-        res.status(200).json({ message: isLiked ? "Thought liked" : "Thought unliked", liked: isLiked });
+        res.status(200).json({ 
+            message: isLiked ? "Thought liked" : "Thought unliked", 
+            liked: isLiked,
+            likeCount: thought.likes.length 
+        });
     } catch (err) {
         console.error("Error in toggle-like route:", err);
         res.status(500).json({ message: "Server error", error: err.message });
     }
 });
 
-// Add a comment to a thought
+// Delete notification
+router.delete('/notifications/:notificationId', auth, async (req, res) => {
+    try {
+        const notification = await Notification.findById(req.params.notificationId);
+        
+        if (!notification) {
+            return res.status(404).json({ message: "Notification not found" });
+        }
+
+        // Check if the user owns this notification
+        if (notification.userId.toString() !== req.userId) {
+            return res.status(403).json({ message: "Not authorized to delete this notification" });
+        }
+
+        await notification.deleteOne();
+        res.status(200).json({ message: "Notification deleted successfully" });
+    } catch (err) {
+        res.status(500).json({ message: "Server error", error: err.message });
+    }
+});
+
+// Add comment
 router.post("/:id/comment", auth, async (req, res) => {
     try {
         const thought = await Thought.findById(req.params.id);
@@ -212,19 +248,31 @@ router.post("/:id/comment", auth, async (req, res) => {
         thought.comments.push(comment);
         await thought.save();
 
-        // Notify the thought owner
+        // Only create notification if it's not the author commenting on their own thought
         if (thought.author.toString() !== req.userId.toString()) {
-            const notification = new Notification({
+            // Check if a similar notification already exists
+            const existingNotification = await Notification.findOne({
                 userId: thought.author,
                 senderId: req.userId,
                 type: "comment",
-                message: `${user.username} commented on your thought "${thought.title}"`,
+                thoughtId: thought._id,
             });
 
-            await notification.save();
+            if (!existingNotification) {
+                const notification = new Notification({
+                    userId: thought.author,
+                    senderId: req.userId,
+                    type: "comment",
+                    thoughtId: thought._id,
+                    message: `${user.username} commented on your thought "${thought.title}"`,
+                });
 
-            if (onlineUsers.has(thought.author.toString())) {
-                io.to(onlineUsers.get(thought.author.toString())).emit("newNotification", notification);
+                await notification.save();
+
+                const authorSocketId = onlineUsers.get(thought.author.toString());
+                if (authorSocketId) {
+                    io.to(authorSocketId).emit("newNotification", notification);
+                }
             }
         }
 
@@ -233,7 +281,6 @@ router.post("/:id/comment", auth, async (req, res) => {
         res.status(500).json({ message: "Server error", error: err.message });
     }
 });
-
 // Reply to a comment
 router.post("/:id/comment/:commentId/reply", auth, async (req, res) => {
     try {
@@ -298,30 +345,52 @@ router.post("/:id/comment/:commentId/like", auth, async (req, res) => {
             return res.status(404).json({ message: "Comment not found" });
         }
 
-        if (!comment.likes.includes(req.userId)) {
-            comment.likes.push(req.userId);
-            await thought.save();
+        const userIndex = comment.likes.indexOf(req.userId);
+        const isLiked = userIndex === -1;
 
-            // Notify the comment owner if it's not the same person liking
+        if (isLiked) {
+            comment.likes.push(req.userId);
+
+            // Only create notification if it's not the author liking their own comment
             if (comment.user.toString() !== req.userId.toString()) {
-                const notification = new Notification({
-                    userId: comment.user, // Comment owner
-                    senderId: req.userId, // User who liked the comment
+                // Check if a similar notification already exists
+                const existingNotification = await Notification.findOne({
+                    userId: comment.user,
+                    senderId: req.userId,
                     type: "like",
-                    message: "Someone liked your comment!",
+                    thoughtId: thought._id,
+                    commentId: comment._id,
                 });
 
-                await notification.save();
+                if (!existingNotification) {
+                    const user = await User.findById(req.userId);
+                    const notification = new Notification({
+                        userId: comment.user,
+                        senderId: req.userId,
+                        type: "like",
+                        thoughtId: thought._id,
+                        commentId: comment._id,
+                        message: `${user.username} liked your comment on "${thought.title}"`,
+                    });
 
-                if (onlineUsers.has(comment.user.toString())) {
-                    io.to(onlineUsers.get(comment.user.toString())).emit("newNotification", notification);
+                    await notification.save();
+
+                    const commentAuthorSocketId = onlineUsers.get(comment.user.toString());
+                    if (commentAuthorSocketId) {
+                        io.to(commentAuthorSocketId).emit("newNotification", notification);
+                    }
                 }
             }
-
-            res.status(200).json({ message: "Comment liked" });
         } else {
-            res.status(400).json({ message: "You already liked this comment" });
+            comment.likes.splice(userIndex, 1);
         }
+
+        await thought.save();
+        res.status(200).json({ 
+            message: isLiked ? "Comment liked" : "Comment unliked",
+            liked: isLiked,
+            likeCount: comment.likes.length
+        });
     } catch (err) {
         res.status(500).json({ message: "Server error", error: err.message });
     }

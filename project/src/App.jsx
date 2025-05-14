@@ -1,7 +1,8 @@
 import React, { useContext } from "react";
 import { BrowserRouter as Router, Routes, Route, useNavigate } from "react-router-dom";
 import { ToastContainer } from "react-toastify";
-import  AuthContext  from "./AuthContext";
+import "react-toastify/dist/ReactToastify.css";
+import AuthContext from "./AuthContext";
 import SignUp from "./pages/Signup";
 import Login from "./pages/Login";
 import HomePage from "./pages/Home";
@@ -29,24 +30,24 @@ const Logout = () => {
 
 const App = () => {
   return (
-      <div className="flex flex-col min-h-screen">
-        <Header />
-        <ToastContainer />
-        <main className="flex-grow">
-          <Routes>
-            <Route path="/" element={<HomePage />} />
-            <Route path="/signup" element={<SignUp />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/Profile" element={<Profile />} />
-            <Route path="/search" element={<SearchPage />} />
-            <Route path="/notifications" element={<Notification />} />
-            <Route path="/thought/:id" element={<ThoughtDetail />} />
-            <Route path="/user-dashboard" element={<UserDashboard />} />
-            <Route path="/logout" element={<Logout />} />
-          </Routes>
-        </main>
-        <Footer />
-      </div>
+    <div className="flex flex-col min-h-screen">
+      <Header />
+      <ToastContainer position="top-right" autoClose={3000} />
+      <main className="flex-grow">
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/signup" element={<SignUp />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/Profile" element={<Profile />} />
+          <Route path="/search" element={<SearchPage />} />
+          <Route path="/notifications" element={<Notification />} />
+          <Route path="/thought/:id" element={<ThoughtDetail />} />
+          <Route path="/user-dashboard" element={<UserDashboard />} />
+          <Route path="/logout" element={<Logout />} />
+        </Routes>
+      </main>
+      <Footer />
+    </div>
   );
 };
 

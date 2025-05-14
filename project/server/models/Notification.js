@@ -5,9 +5,9 @@ const notificationSchema = new mongoose.Schema({
   senderId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
   type: { type: String, enum: ["like", "comment", "reply"], required: true },
   message: { type: String, required: true },
+  thoughtId: { type: mongoose.Schema.Types.ObjectId, ref: "Thought" },
+  commentId: { type: mongoose.Schema.Types.ObjectId },
   isRead: { type: Boolean, default: false },
-  
-},{timestamps: true});
+}, { timestamps: true });
 
 export default mongoose.model("Notification", notificationSchema);
-
