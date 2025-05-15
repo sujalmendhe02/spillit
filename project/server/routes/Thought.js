@@ -536,4 +536,17 @@ router.delete("/:id/comment/:commentId/reply/:replyId", auth, async (req, res) =
     }
 });
 
+router.get('/user/:id', async (req, res) => {
+  try {
+    const userId = req.params.id;
+
+    const thoughts = await Thought.find({ author: userId }).sort({ createdAt: -1 }).lean();
+
+    res.status(200).json(thoughts);
+  } catch (error) {
+    console.error('Error fetching thoughts:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
 export default router;

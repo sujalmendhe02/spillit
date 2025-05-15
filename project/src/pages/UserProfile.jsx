@@ -15,8 +15,8 @@ function UserProfile() {
     const fetchUserProfile = async () => {
       try {
         const [userRes, thoughtsRes] = await Promise.all([
-          axios.get(`https://snaplife-backend.onrender.com/api/auth/user/${id}`),
-          axios.get(`https://snaplife-backend.onrender.com/api/thoughts/user/${id}`)
+          axios.get(`http://localhost:500/api/auth/user/${id}`),
+          axios.get(`http://localhost:500/api/thoughts/user/${id}`)
         ]);
 
         setUserData(userRes.data);
