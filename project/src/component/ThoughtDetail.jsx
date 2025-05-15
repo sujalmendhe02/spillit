@@ -33,6 +33,50 @@ const ThoughtDetail = () => {
         fetchThought();
     }, [id, user]);
 
+    useEffect(() => {
+        const handleKeyDown = (event) => {
+            if (event.key === 'ArrowLeft') {
+                // Navigate to the previous blog
+                navigateToPreviousBlog();
+            } else if (event.key === 'ArrowRight') {
+                // Navigate to the next blog
+                navigateToNextBlog();
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [thought]);
+
+    const refreshPage = () => {
+        navigate(0);
+    };
+
+    const navigateToPreviousBlog = async () => {
+        try {
+            const res = await axios.get(`http://localhost:5000/api/thoughts/previous/${id}`);
+            if (res.data && res.data._id) {
+                navigate(`/thought/${res.data._id}`);
+            }
+        } catch (err) {
+            console.error('Error fetching previous thought:', err);
+        }
+    };
+
+    const navigateToNextBlog = async () => {
+        try {
+            const res = await axios.get(`http://localhost:5000/api/thoughts/next/${id}`);
+            if (res.data && res.data._id) {
+                navigate(`/thought/${res.data._id}`);
+            }
+        } catch (err) {
+            console.error('Error fetching next thought:', err);
+        }
+    };
+
     const handleLikeToggle = async () => {
         if (!user) {
             navigate("/login");
@@ -53,8 +97,8 @@ const ThoughtDetail = () => {
             const { liked: isLiked, likeCount: newLikeCount } = response.data;
             setLiked(isLiked);
             setLikeCount(newLikeCount);
-
-            toast.success(isLiked ? "Thought liked!" : "Thought unliked");
+            refreshPage();
+            //toast.success(isLiked ? "Thought liked!" : "Thought unliked");
         } catch (error) {
             console.error("Error toggling like:", error);
             toast.error("Failed to update like");
@@ -83,12 +127,14 @@ const ThoughtDetail = () => {
             const res = await axios.get(`http://localhost:5000/api/thoughts/${id}`);
             setThought(res.data);
             setCommentText("");
-            toast.success("Comment added successfully!");
+            refreshPage();
+            //toast.success("Comment added successfully!");
         } catch (error) {
             console.error("Error adding comment:", error);
             toast.error("Failed to add comment");
         }
     };
+
 
     const handleReply = async (commentId) => {
         if (!user) {
@@ -113,6 +159,7 @@ const ThoughtDetail = () => {
             const res = await axios.get(`http://localhost:5000/api/thoughts/${id}`);
             setThought(res.data);
             setReplyText({ ...replyText, [commentId]: "" });
+            refreshPage();
         } catch (error) {
             console.error("Error adding reply:", error);
         }
@@ -138,7 +185,7 @@ const ThoughtDetail = () => {
             const { liked: isLiked } = response.data;
             const res = await axios.get(`http://localhost:5000/api/thoughts/${id}`);
             setThought(res.data);
-
+            refreshPage();
             toast.success(isLiked ? "Comment liked!" : "Comment unliked");
         } catch (error) {
             console.error("Error liking comment:", error);
@@ -162,6 +209,7 @@ const ThoughtDetail = () => {
             // Refresh thought data
             const res = await axios.get(`http://localhost:5000/api/thoughts/${id}`);
             setThought(res.data);
+            refreshPage();
         } catch (error) {
             console.error("Error deleting comment:", error);
         }
@@ -183,6 +231,7 @@ const ThoughtDetail = () => {
             // Refresh thought data
             const res = await axios.get(`http://localhost:5000/api/thoughts/${id}`);
             setThought(res.data);
+            refreshPage();
         } catch (error) {
             console.error("Error deleting reply:", error);
         }
