@@ -1,5 +1,5 @@
 import { useEffect, useState, useContext } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import { toast } from "react-toastify";
 import axios from "axios";
 import { FaHeart, FaPaperPlane, FaTrash, FaThumbsUp } from "react-icons/fa";
@@ -17,13 +17,11 @@ const ThoughtDetail = () => {
     const [replyText, setReplyText] = useState({});
     const { user } = useContext(AuthContext);
     const userId = user?._id?.toString();
-    console.log("Current logged-in userId:", userId);
 
     const fetchThought = async () => {
         try {
             const res = await axios.get(`http://localhost:5000/api/thoughts/${id}`);
             setThought(res.data);
-            // Check if the current user has liked the thought
             const isLiked = res.data.likes?.some(like => like._id === user?._id);
             setLiked(isLiked);
             setLikeCount(res.data.likes?.length || 0);
@@ -234,7 +232,9 @@ const ThoughtDetail = () => {
         <div className="max-w-2xl mx-auto p-4 pt-20">
             <div className="bg-white rounded-lg shadow-md p-6">
                 <h1 className="text-2xl font-bold mb-2">{thought.title}</h1>
-                <p className="text-gray-600 mb-4">By {thought.author?.username || "Unknown"}</p>
+                <Link to={`/user/${thought.author?._id}`} className="text-blue-600 hover:text-blue-800 mb-4 block">
+                    {thought.author?.username || "Unknown"}
+                </Link>
                 <p className="mb-4">{thought.content}</p>
 
                 <div className="flex items-center space-x-4 mb-6">
@@ -286,7 +286,9 @@ const ThoughtDetail = () => {
                             <div key={comment._id} className="bg-gray-50 p-4 rounded-lg">
                                 <div className="flex justify-between items-start">
                                     <div>
-                                        <p className="font-semibold">{comment.username}</p>
+                                        <Link to={`/user/${comment.user?._id}`} className="font-semibold text-blue-600 hover:text-blue-800">
+                                            {comment.username}
+                                        </Link>
                                         <p className="mt-1">{comment.text}</p>
                                     </div>
                                     <div className="flex space-x-2">
@@ -315,7 +317,9 @@ const ThoughtDetail = () => {
                                         <div key={reply._id} className="bg-white p-2 rounded">
                                             <div className="flex justify-between items-start">
                                                 <div>
-                                                    <p className="font-semibold text-sm">{reply.user?.username}</p>
+                                                    <Link to={`/user/${reply.user?._id}`} className="font-semibold text-sm text-blue-600 hover:text-blue-800">
+                                                        {reply.user?.username}
+                                                    </Link>
                                                     <p className="text-sm">{reply.text}</p>
                                                 </div>
                                                 {userId && reply.user?.toString() === userId && (
@@ -326,7 +330,6 @@ const ThoughtDetail = () => {
                                                         <FaTrash />
                                                     </button>
                                                 )}
-
                                             </div>
                                         </div>
                                     ))}

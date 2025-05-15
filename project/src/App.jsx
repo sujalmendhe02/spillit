@@ -12,6 +12,7 @@ import ThoughtDetail from './component/ThoughtDetail';
 import SearchPage from "./pages/SearchPage";
 import Profile from "./pages/Profile";
 import Notification from "./pages/Notification";
+import UserProfile from "./pages/UserProfile";
 
 const Home = () => <div className="container mx-auto py-8">Dashboard</div>;
 const UserDashboard = () => <div className="container mx-auto py-8">User Dashboard</div>;
@@ -42,6 +43,7 @@ const App = () => {
           <Route path="/search" element={<SearchPage />} />
           <Route path="/notifications" element={<Notification />} />
           <Route path="/thought/:id" element={<ThoughtDetail />} />
+          <Route path="/user/:id" element={<UserProfile />} />
           <Route path="/user-dashboard" element={<UserDashboard />} />
           <Route path="/logout" element={<Logout />} />
         </Routes>

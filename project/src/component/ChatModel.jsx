@@ -19,19 +19,15 @@ const ChatModel = () => {
   useEffect(() => {
     if (!user) return;
 
-    // Connect to socket
     socket.connect();
     socket.emit("join", user._id);
 
-    // Load conversations
     fetchConversations();
 
-    // Listen for new messages
     socket.on("receiveMessage", (message) => {
       if (selectedChat && (selectedChat._id === message.sender || selectedChat._id === message.receiver)) {
         setMessages((prev) => [...prev, message]);
       }
-      // Update conversations list
       fetchConversations();
     });
 
@@ -109,7 +105,7 @@ const ChatModel = () => {
   };
 
   return (
-    <div className="fixed top-20 left-20 z-50">
+    <div className="fixed bottom-4 right-4 z-50">
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="bg-blue-600 text-white p-3 rounded-full shadow-lg hover:bg-blue-700 transition"
@@ -118,7 +114,7 @@ const ChatModel = () => {
       </button>
 
       {isOpen && (
-        <div className="fixed top-20 left-20 bg-white w-96 h-[600px] shadow-lg rounded-lg flex flex-col">
+        <div className="fixed bottom-20 right-4 bg-white w-96 h-[500px] shadow-lg rounded-lg flex flex-col">
           <div className="flex justify-between items-center bg-blue-600 text-white p-4 rounded-t-lg">
             <h2 className="text-lg font-bold">Messages</h2>
             <button onClick={() => setIsOpen(false)}>
@@ -127,7 +123,7 @@ const ChatModel = () => {
           </div>
 
           <div className="flex h-full">
-            {/* Conversations List */}
+            {/* Users List */}
             <div className="w-1/3 border-r">
               <div className="p-2">
                 <div className="relative">
