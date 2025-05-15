@@ -16,44 +16,42 @@ const ThoughtDetail = () => {
     const [commentText, setCommentText] = useState("");
     const [replyText, setReplyText] = useState({});
     const { user } = useContext(AuthContext);
+    const userId = user?._id?.toString();
+    console.log("Current logged-in userId:", userId);
+
+    const fetchThought = async () => {
+        try {
+            const res = await axios.get(`http://localhost:5000/api/thoughts/${id}`);
+            setThought(res.data);
+            // Check if the current user has liked the thought
+            const isLiked = res.data.likes?.some(like => like._id === user?._id);
+            setLiked(isLiked);
+            setLikeCount(res.data.likes?.length || 0);
+        } catch (err) {
+            setError("Failed to load thought");
+        } finally {
+            setLoading(false);
+        }
+    };
 
     useEffect(() => {
-        const fetchThought = async () => {
-            try {
-                const res = await axios.get(`http://localhost:5000/api/thoughts/${id}`);
-                setThought(res.data);
-                setLiked(res.data.likes?.includes(user?._id));
-                setLikeCount(res.data.likes?.length || 0);
-            } catch (err) {
-                setError("Failed to load thought");
-            } finally {
-                setLoading(false);
-            }
-        };
-        fetchThought();
+        if (user) {
+            fetchThought();
+        }
     }, [id, user]);
 
     useEffect(() => {
         const handleKeyDown = (event) => {
             if (event.key === 'ArrowLeft') {
-                // Navigate to the previous blog
                 navigateToPreviousBlog();
             } else if (event.key === 'ArrowRight') {
-                // Navigate to the next blog
                 navigateToNextBlog();
             }
         };
 
         window.addEventListener('keydown', handleKeyDown);
-
-        return () => {
-            window.removeEventListener('keydown', handleKeyDown);
-        };
+        return () => window.removeEventListener('keydown', handleKeyDown);
     }, [thought]);
-
-    const refreshPage = () => {
-        navigate(0);
-    };
 
     const navigateToPreviousBlog = async () => {
         try {
@@ -97,15 +95,15 @@ const ThoughtDetail = () => {
             const { liked: isLiked, likeCount: newLikeCount } = response.data;
             setLiked(isLiked);
             setLikeCount(newLikeCount);
-            refreshPage();
-            //toast.success(isLiked ? "Thought liked!" : "Thought unliked");
+            await fetchThought();
         } catch (error) {
             console.error("Error toggling like:", error);
             toast.error("Failed to update like");
         }
     };
 
-    const handleComment = async () => {
+    const handleComment = async (e) => {
+        e.preventDefault();
         if (!user) {
             navigate("/login");
             return;
@@ -124,19 +122,17 @@ const ThoughtDetail = () => {
                 }
             );
 
-            const res = await axios.get(`http://localhost:5000/api/thoughts/${id}`);
-            setThought(res.data);
             setCommentText("");
-            refreshPage();
-            //toast.success("Comment added successfully!");
+            await fetchThought();
+            toast.success("Comment added successfully!");
         } catch (error) {
             console.error("Error adding comment:", error);
             toast.error("Failed to add comment");
         }
     };
 
-
-    const handleReply = async (commentId) => {
+    const handleReply = async (commentId, e) => {
+        e.preventDefault();
         if (!user) {
             navigate("/login");
             return;
@@ -155,13 +151,12 @@ const ThoughtDetail = () => {
                 }
             );
 
-            // Refresh thought data
-            const res = await axios.get(`http://localhost:5000/api/thoughts/${id}`);
-            setThought(res.data);
             setReplyText({ ...replyText, [commentId]: "" });
-            refreshPage();
+            await fetchThought();
+            toast.success("Reply added successfully!");
         } catch (error) {
             console.error("Error adding reply:", error);
+            toast.error("Failed to add reply");
         }
     };
 
@@ -172,7 +167,7 @@ const ThoughtDetail = () => {
         }
 
         try {
-            const response = await axios.post(
+            await axios.post(
                 `http://localhost:5000/api/thoughts/${id}/comment/${commentId}/like`,
                 {},
                 {
@@ -182,11 +177,7 @@ const ThoughtDetail = () => {
                 }
             );
 
-            const { liked: isLiked } = response.data;
-            const res = await axios.get(`http://localhost:5000/api/thoughts/${id}`);
-            setThought(res.data);
-            refreshPage();
-            toast.success(isLiked ? "Comment liked!" : "Comment unliked");
+            await fetchThought();
         } catch (error) {
             console.error("Error liking comment:", error);
             toast.error("Failed to update like");
@@ -206,12 +197,11 @@ const ThoughtDetail = () => {
                 }
             );
 
-            // Refresh thought data
-            const res = await axios.get(`http://localhost:5000/api/thoughts/${id}`);
-            setThought(res.data);
-            refreshPage();
+            await fetchThought();
+            toast.success("Comment deleted successfully!");
         } catch (error) {
             console.error("Error deleting comment:", error);
+            toast.error("Failed to delete comment");
         }
     };
 
@@ -228,12 +218,11 @@ const ThoughtDetail = () => {
                 }
             );
 
-            // Refresh thought data
-            const res = await axios.get(`http://localhost:5000/api/thoughts/${id}`);
-            setThought(res.data);
-            refreshPage();
+            await fetchThought();
+            toast.success("Reply deleted successfully!");
         } catch (error) {
             console.error("Error deleting reply:", error);
+            toast.error("Failed to delete reply");
         }
     };
 
@@ -251,9 +240,9 @@ const ThoughtDetail = () => {
                 <div className="flex items-center space-x-4 mb-6">
                     <button
                         onClick={handleLikeToggle}
-                        className={`flex items-center space-x-2 ${liked ? 'text-red-500' : 'text-gray-500'}`}
+                        className={`flex items-center space-x-2 ${liked ? 'text-red-500' : 'text-gray-500'} hover:text-red-500 transition-colors`}
                     >
-                        <FaHeart className={liked ? 'fill-current' : ''} />
+                        <FaHeart className={`${liked ? 'fill-current' : ''}`} />
                         <span>{likeCount}</span>
                     </button>
                 </div>
@@ -276,7 +265,7 @@ const ThoughtDetail = () => {
                 <div className="mt-8">
                     <h3 className="text-lg font-semibold mb-4">Comments</h3>
 
-                    <div className="flex space-x-2 mb-6">
+                    <form onSubmit={handleComment} className="flex space-x-2 mb-6">
                         <input
                             type="text"
                             value={commentText}
@@ -285,12 +274,12 @@ const ThoughtDetail = () => {
                             className="flex-1 p-2 border rounded-lg"
                         />
                         <button
-                            onClick={handleComment}
+                            type="submit"
                             className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
                         >
                             <FaPaperPlane />
                         </button>
-                    </div>
+                    </form>
 
                     <div className="space-y-4">
                         {thought.comments?.map((comment) => (
@@ -303,23 +292,23 @@ const ThoughtDetail = () => {
                                     <div className="flex space-x-2">
                                         <button
                                             onClick={() => handleLikeComment(comment._id)}
-                                            className={`p-1 ${comment.likes?.includes(user?._id) ? 'text-red-500' : 'text-gray-500'}`}
+                                            className={`p-1 ${comment.likes?.some(like => like._id === user?._id) ? 'text-red-500' : 'text-gray-500'} hover:text-red-500 transition-colors`}
                                         >
-                                            <FaHeart className={comment.likes?.includes(user?._id) ? 'fill-current' : ''} />
+                                            <FaHeart className={comment.likes?.some(like => like._id === user?._id) ? 'fill-current' : ''} />
                                             <span className="ml-1">{comment.likes?.length || 0}</span>
                                         </button>
 
-                                        {user?._id === comment.user && (
+                                        {userId && comment.user?.toString() === userId && (
                                             <button
                                                 onClick={() => handleDeleteComment(comment._id)}
-                                                className="p-1 text-red-500 hover:text-red-700"
+                                                className="p-1 text-red-500 hover:text-red-700 transition-colors"
                                             >
                                                 <FaTrash />
                                             </button>
                                         )}
-
                                     </div>
                                 </div>
+
                                 {/* Replies */}
                                 <div className="ml-8 mt-2 space-y-2">
                                     {comment.replies?.map((reply) => (
@@ -329,21 +318,22 @@ const ThoughtDetail = () => {
                                                     <p className="font-semibold text-sm">{reply.user?.username}</p>
                                                     <p className="text-sm">{reply.text}</p>
                                                 </div>
-                                                {user?._id === reply.user && (
+                                                {userId && reply.user?.toString() === userId && (
                                                     <button
                                                         onClick={() => handleDeleteReply(comment._id, reply._id)}
-                                                        className="p-1 text-red-500 hover:text-red-700"
+                                                        className="p-1 text-red-500 hover:text-red-700 transition-colors"
                                                     >
                                                         <FaTrash />
                                                     </button>
                                                 )}
+
                                             </div>
                                         </div>
                                     ))}
                                 </div>
 
                                 {/* Add Reply */}
-                                <div className="mt-2 ml-8 flex space-x-2">
+                                <form onSubmit={(e) => handleReply(comment._id, e)} className="mt-2 ml-8 flex space-x-2">
                                     <input
                                         type="text"
                                         value={replyText[comment._id] || ''}
@@ -352,12 +342,12 @@ const ThoughtDetail = () => {
                                         className="flex-1 p-1 text-sm border rounded"
                                     />
                                     <button
-                                        onClick={() => handleReply(comment._id)}
+                                        type="submit"
                                         className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
                                     >
                                         <FaPaperPlane />
                                     </button>
-                                </div>
+                                </form>
                             </div>
                         ))}
                     </div>

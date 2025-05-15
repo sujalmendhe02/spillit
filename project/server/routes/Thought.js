@@ -228,7 +228,7 @@ router.delete('/notifications/:notificationId', auth, async (req, res) => {
 // Add comment
 router.post("/:id/comment", auth, async (req, res) => {
     try {
-        const thought = await Thought.findById(req.params.id);
+        const thought = await Thought.findById(req.params.id).populate("comments.user");
         if (!thought) {
             return res.status(404).json({ message: "Thought not found" });
         }

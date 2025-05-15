@@ -109,7 +109,7 @@ const ChatModel = () => {
   };
 
   return (
-    <div className="fixed bottom-6 right-6 z-50">
+    <div className="fixed top-20 left-20 z-50">
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="bg-blue-600 text-white p-3 rounded-full shadow-lg hover:bg-blue-700 transition"
@@ -118,7 +118,7 @@ const ChatModel = () => {
       </button>
 
       {isOpen && (
-        <div className="fixed bottom-20 right-6 bg-white w-96 h-[600px] shadow-lg rounded-lg flex flex-col">
+        <div className="fixed top-20 left-20 bg-white w-96 h-[600px] shadow-lg rounded-lg flex flex-col">
           <div className="flex justify-between items-center bg-blue-600 text-white p-4 rounded-t-lg">
             <h2 className="text-lg font-bold">Messages</h2>
             <button onClick={() => setIsOpen(false)}>
