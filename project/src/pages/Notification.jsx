@@ -68,7 +68,7 @@ const NotificationPage = () => {
       });
 
       setNotifications(prev => prev.filter(n => n._id !== notificationId));
-      toast.success("Notification deleted successfully");
+      //toast.success("Notification deleted successfully");
     } catch (err) {
       console.error("Error deleting notification:", err);
       toast.error("Failed to delete notification");

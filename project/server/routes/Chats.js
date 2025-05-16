@@ -4,13 +4,6 @@ import { auth, getProfile, createThought } from '../middleware/Auth.js';
 
 const router = express.Router();
 
-// import express from "express";
-// import Message from "../models/Message.js";
-// import User from "../models/User.js";
-// import { auth } from '../middleware/Auth.js';
-
-// const router = express.Router();
-
 // Get chat list (conversations)
 router.get("/conversations", auth, async (req, res) => {
     try {
@@ -63,9 +56,15 @@ router.get("/:userId", auth, async (req, res) => {
                 { sender: req.params.userId, receiver: req.userId }
             ]
         })
-        .sort({ createdAt: 1 })
-        .populate("sender", "username")
-        .populate("receiver", "username");
+            .sort({ createdAt: 1 })
+            .populate("sender", "username")
+            .populate("receiver", "username");
+        await Message.updateMany(
+            { sender: req.params.userId, receiver: req.userId, read: false },
+            { $set: { read: true } }
+        );
+
+        [messages] = await Promise.all([fetchMessages, markAsRead]);
 
         res.status(200).json(messages);
     } catch (err) {
@@ -77,7 +76,7 @@ router.get("/:userId", auth, async (req, res) => {
 router.post("/", auth, async (req, res) => {
     try {
         const { receiverId, text } = req.body;
-        
+
         const newMessage = new Message({
             sender: req.userId,
             receiver: receiverId,
@@ -85,7 +84,7 @@ router.post("/", auth, async (req, res) => {
         });
 
         await newMessage.save();
-        
+
         // Populate sender and receiver details
         const populatedMessage = await Message.findById(newMessage._id)
             .populate("sender", "username")
@@ -97,7 +96,24 @@ router.post("/", auth, async (req, res) => {
     }
 });
 
-//export default router;
+// One-sided delete
+router.delete("/:messageId", auth, async (req, res) => {
+    try {
+        const message = await Message.findById(req.params.messageId);
+        if (!message) return res.status(404).json({ message: "Message not found" });
+
+        if (message.sender.toString() !== req.userId) {
+            return res.status(403).json({ message: "Unauthorized to delete this message" });
+        }
+
+        await message.deleteOne(); // Or you can add a 'deleted' flag if you want soft delete
+        res.status(200).json({ message: "Message deleted from your side" });
+    } catch (err) {
+        res.status(500).json({ error: "Server error", message: err.message });
+    }
+});
+
+
 
 // Fetch all messages between two users
 router.get("/:user1/:user2", auth, async (req, res) => {

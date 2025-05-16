@@ -109,12 +109,11 @@ function Profile() {
       </div>
 
       {/* Thoughts Section */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-20">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {userThoughts.length > 0 ? (
           userThoughts.map((thought) => (
-            <div key={thought._id} className="relative bg-white rounded-lg shadow-md overflow-hidden">
-              {/* ThoughtCard Component */}
-              <ThoughtCard thought={thought} userId={localStorage.getItem("userId")} />
+            <div key={thought._id} className="relative">
+              <ThoughtCard thought={thought} userId={user?._id} />
               <button
                 onClick={() => handleDeleteThought(thought._id)}
                 className="absolute top-2 right-2 p-2 bg-red-600 text-white rounded-full hover:bg-red-700"
@@ -124,10 +123,9 @@ function Profile() {
             </div>
           ))
         ) : (
-          !loading && <p className="text-gray-600">No thoughts available.</p>
+          !loading && <p className="text-gray-600 col-span-full text-center">No thoughts available.</p>
         )}
       </div>
-
 
       {/* Edit Profile Modal */}
       {editing && (

@@ -1,6 +1,6 @@
 import { useEffect, useState, useContext } from "react";
 import { io } from "socket.io-client";
-import { MessageCircle, X, Search } from "lucide-react";
+import { MessageCircle, X, Search, Trash2, Check, CheckCheck } from "lucide-react";
 import AuthContext from "../AuthContext";
 import axios from "axios";
 
@@ -24,15 +24,21 @@ const ChatModel = () => {
 
     fetchConversations();
 
-    socket.on("receiveMessage", (message) => {
+    const handleNewMessage = (message) => {
       if (selectedChat && (selectedChat._id === message.sender || selectedChat._id === message.receiver)) {
-        setMessages((prev) => [...prev, message]);
+        setMessages((prev) => {
+          const messageExists = prev.some(m => m._id === message._id);
+          if (messageExists) return prev;
+          return [...prev, message];
+        });
       }
       fetchConversations();
-    });
+    };
+
+    socket.on("receiveMessage", handleNewMessage);
 
     return () => {
-      socket.off("receiveMessage");
+      socket.off("receiveMessage", handleNewMessage);
       socket.disconnect();
     };
   }, [user, selectedChat]);
@@ -82,6 +88,17 @@ const ChatModel = () => {
     }
   };
 
+  const deleteMessage = async (id) => {
+    try {
+      await axios.delete(`http://localhost:5000/api/chats/${id}`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
+      });
+      setMessages(prev => prev.filter(m => m._id !== id));
+    } catch (error) {
+      console.error("Error deleting message:", error);
+    }
+  };
+
   const searchUsers = async () => {
     try {
       const response = await axios.get(`http://localhost:5000/api/thoughts/users`, {
@@ -104,6 +121,12 @@ const ChatModel = () => {
     fetchMessages(selectedUser._id);
   };
 
+  const getTickIcon = (msg) => {
+    if (msg.sender._id !== user._id) return null;
+    if (msg.read) return <CheckCheck size={14} className="text-blue-500 ml-1" />;
+    return <CheckCheck size={14} className="text-gray-500 ml-1" />;
+  };
+
   return (
     <div className="fixed bottom-4 right-4 z-50">
       <button
@@ -114,7 +137,7 @@ const ChatModel = () => {
       </button>
 
       {isOpen && (
-        <div className="fixed bottom-20 right-4 bg-white w-96 h-[500px] shadow-lg rounded-lg flex flex-col">
+        <div className="fixed bottom-20 right-4 bg-white w-[700px] h-[600px] shadow-2xl rounded-lg flex flex-col">
           <div className="flex justify-between items-center bg-blue-600 text-white p-4 rounded-t-lg">
             <h2 className="text-lg font-bold">Messages</h2>
             <button onClick={() => setIsOpen(false)}>
@@ -124,7 +147,7 @@ const ChatModel = () => {
 
           <div className="flex h-full">
             {/* Users List */}
-            <div className="w-1/3 border-r">
+            <div className="w-2/5 border-r">
               <div className="p-2">
                 <div className="relative">
                   <input
@@ -141,47 +164,79 @@ const ChatModel = () => {
               <div className="overflow-y-auto h-[calc(100%-56px)]">
                 {users
                   .filter(u => u.username.toLowerCase().includes(searchQuery.toLowerCase()))
-                  .map((user) => (
-                    <div
-                      key={user._id}
-                      onClick={() => startNewChat(user)}
-                      className={`p-3 hover:bg-gray-100 cursor-pointer ${
-                        selectedChat?._id === user._id ? "bg-gray-100" : ""
-                      }`}
-                    >
-                      <p className="font-medium">{user.username}</p>
-                    </div>
-                  ))}
+                  .map((user) => {
+                    const unread = conversations.find(c => c.user._id === user._id)?.unreadCount;
+                    return (
+                      <div
+                        key={user._id}
+                        onClick={() => startNewChat(user)}
+                        className={`relative p-3 hover:bg-gray-100 cursor-pointer ${selectedChat?._id === user._id ? "bg-gray-100" : ""
+                          }`}
+                      >
+                        <div className="flex items-center">
+                          <span className="w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center mr-2">
+                            {user.username.charAt(0).toUpperCase()}
+                          </span>
+                          <p className="font-medium">{user.username}</p>
+                          {unread > 0 && (
+                            <span className="ml-auto bg-red-500 text-white text-xs rounded-full px-2 py-0.5">
+                              {unread}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
               </div>
             </div>
 
             {/* Chat Window */}
-            <div className="flex-1 flex flex-col">
+            <div className="w-3/5 flex flex-col">
               {selectedChat ? (
                 <>
                   <div className="p-3 bg-gray-100 border-b">
-                    <p className="font-medium">{selectedChat.username}</p>
+                    <div className="flex items-center">
+                      <span className="w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center mr-2">
+                        {selectedChat.username.charAt(0).toUpperCase()}
+                      </span>
+                      <p className="font-medium">{selectedChat.username}</p>
+                    </div>
                   </div>
 
                   <div className="flex-1 overflow-y-auto p-4">
                     {messages.map((msg, index) => (
                       <div
-                        key={index}
-                        className={`mb-2 flex ${
-                          msg.sender._id === user._id ? "justify-end" : "justify-start"
-                        }`}
+                        key={msg._id || index}
+                        className={`mb-2 flex ${msg.sender._id === user._id ? "justify-end" : "justify-start"
+                          }`}
                       >
-                        <div
-                          className={`p-2 rounded-lg max-w-[70%] ${
-                            msg.sender._id === user._id
+                        {msg.sender._id !== user._id && (
+                          <span className="w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-xs mr-2">
+                            {msg.sender.username.charAt(0).toUpperCase()}
+                          </span>
+                        )}
+                        <div className="relative group">
+                          <div
+                            className={`p-2 rounded-lg max-w-[70%] ${msg.sender._id === user._id
                               ? "bg-blue-600 text-white"
                               : "bg-gray-200"
-                          }`}
-                        >
-                          <p>{msg.text}</p>
-                          <span className="text-xs opacity-75">
-                            {new Date(msg.createdAt).toLocaleTimeString()}
-                          </span>
+                              }`}
+                          >
+                            <p>{msg.text}</p>
+                            <div className="text-xs opacity-75 flex justify-end items-center">
+                              {new Date(msg.createdAt).toLocaleTimeString()}
+                              {getTickIcon(msg)}
+                            </div>
+                          </div>
+                          {msg.sender._id === user._id && (
+                            <button
+                              onClick={() => deleteMessage(msg._id)}
+                              className="absolute -top-2 -right-6 opacity-0 group-hover:opacity-100 transition text-red-500"
+                              title="Delete"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )}
                         </div>
                       </div>
                     ))}
